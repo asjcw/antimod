@@ -1,0 +1,129 @@
+local modgroup = 17215700
+local notablegroup = 10604500
+local ecco_duration = 6
+
+local ecco_players = game:GetService("Players")
+local ecco_input = game:GetService("UserInputService")
+local ecco_me = ecco_players.LocalPlayer
+
+-- Contenedor invisible
+local ecco_gui = Instance.new("ScreenGui")
+ecco_gui.Name = "EccoNotifSystem"
+ecco_gui.ResetOnSpawn = false
+ecco_gui.DisplayOrder = 100 
+ecco_gui.Parent = ecco_me:WaitForChild("PlayerGui")
+
+local ecco_container = Instance.new("Frame")
+ecco_container.Name = "NotifList"
+ecco_container.Size = UDim2.new(0, 400, 0.5, 0)
+-- Centrado en el eje Y (0.5), y 20 pixeles despegado de la izquierda.
+ecco_container.Position = UDim2.new(0, 20, 0.5, 0) 
+ecco_container.AnchorPoint = Vector2.new(0, 0.5)
+ecco_container.BackgroundTransparency = 1
+ecco_container.Parent = ecco_gui
+
+local ecco_layout = Instance.new("UIListLayout")
+ecco_layout.Padding = UDim.new(0, 5)
+ecco_layout.SortOrder = Enum.SortOrder.LayoutOrder
+ecco_layout.VerticalAlignment = Enum.VerticalAlignment.Center -- Las apila en el medio
+ecco_layout.Parent = ecco_container
+
+local ecco_cache = {} 
+
+local function ecco_inGroup(ecco_p, ecco_id)
+    local s, r = pcall(function() return ecco_p:IsInGroup(ecco_id) end)
+    return s and r or false
+end
+
+local function ecco_getRole(ecco_p, ecco_id)
+    local s, r = pcall(function() return ecco_p:GetRoleInGroup(ecco_id) end)
+    if s and r and r ~= "Guest" then return r end
+    return nil
+end
+
+local function ecco_checkRole(ecco_p)
+    if ecco_cache[ecco_p.Name] then return ecco_cache[ecco_p.Name] end
+
+    if ecco_inGroup(ecco_p, modgroup) then
+        ecco_cache[ecco_p.Name] = "MOD"
+        return "MOD"
+    end
+    
+    local ecco_r = ecco_getRole(ecco_p, notablegroup)
+    if ecco_r then
+        ecco_cache[ecco_p.Name] = ecco_r
+        return ecco_r
+    end
+    
+    ecco_cache[ecco_p.Name] = "None"
+    return nil
+end
+
+local function ecco_notify(ecco_user, ecco_rank)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 0, 22)
+    lbl.BackgroundTransparency = 1
+    
+    lbl.Font = Enum.Font.Code
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextSize = 17
+    lbl.TextXAlignment = Enum.TextXAlignment.Left 
+    
+    if ecco_rank == "MOD" then
+        lbl.Text = '<font color="rgb(255,50,50)">(' .. ecco_user .. ')</font> Join the server'
+    else
+        lbl.Text = '<font color="rgb(255,215,0)">' .. ecco_user .. '</font> Join the server (Rank: ' .. ecco_rank .. ')'
+    end
+    
+    lbl.RichText = true
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(0, 0, 0)
+    stroke.Thickness = 1.5
+    stroke.Parent = lbl
+    
+    lbl.Parent = ecco_container
+    
+    task.spawn(function()
+        task.wait(ecco_duration)
+        for i = 0, 1, 0.1 do
+            task.wait(0.05)
+            lbl.TextTransparency = i
+            stroke.Transparency = i
+        end
+        lbl:Destroy()
+    end)
+end
+
+local function ecco_process(ecco_p)
+    task.spawn(function()
+        local r = ecco_checkRole(ecco_p)
+        
+        if r and r ~= "None" then
+            ecco_notify(ecco_p.Name, r)
+            
+            if r == "MOD" then
+                -- AÑADIDO: Espera 1.5 segundos para que alcances a leer la notificación antes del Kick
+                task.wait(1.5) 
+                ecco_me:Kick("Shit mom walked in... its over goodbye.")
+            end
+        end
+    end)
+end
+
+for _, p in pairs(ecco_players:GetPlayers()) do
+    if p ~= ecco_me then
+        ecco_process(p)
+    end
+end
+
+ecco_players.PlayerAdded:Connect(function(p)
+    ecco_process(p)
+end)
+
+ecco_input.InputBegan:Connect(function(i, gp)
+    if gp then return end
+    if i.KeyCode == Enum.KeyCode.End then
+        ecco_me:Kick("... Join to the server.")
+    end
+end)
